@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trading Journal</title>
+    <style>
+        :root {
+            --bg-color: #121212; --primary-color: #1e1e1e; --secondary-color: #2a2a2a;
+            --text-color: #e0e0e0; --border-color: #444; --green-color: #28a745;
+            --red-color: #dc3545; --blue-color: #007bff;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background-color: var(--bg-color); color: var(--text-color); margin: 0; padding: 20px;
+        }
+        .container { max-width: 1200px; margin: 0 auto; display: grid; grid-template-columns: 320px 1fr; gap: 20px; }
+        .main-content { grid-column: 2 / 3; } .sidebar { grid-column: 1 / 2; }
+        h1, h2 { border-bottom: 2px solid var(--blue-color); padding-bottom: 10px; margin-top: 0; }
+        .card { background-color: var(--primary-color); border-radius: 8px; padding: 20px; margin-bottom: 20px; border: 1px solid var(--border-color); }
+        .dashboard { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+        .stat { background-color: var(--secondary-color); padding: 15px; border-radius: 6px; text-align: center; }
+        .stat-title { font-size: 0.9em; color: #aaa; margin-bottom: 8px; text-transform: uppercase; }
+        .stat-value { font-size: 1.6em; font-weight: bold; }
+        form { display: flex; flex-direction: column; gap: 15px; }
+        label { margin-bottom: 5px; font-size: 0.9em; color: #ccc; }
+        input, select, textarea {
+            background-color: var(--secondary-color); color: var(--text-color); border: 1px solid var(--border-color);
+            border-radius: 4px; padding: 10px; font-size: 1em; width: 100%; box-sizing: border-box;
+        }
+        input:focus, select:focus, textarea:focus { outline: none; border-color: var(--blue-color); }
+        .form-row { display: flex; gap: 15px; }
+        button { background-color: var(--blue-color); color: white; border: none; padding: 12px 15px; border-radius: 4px; cursor: pointer; font-size: 1em; font-weight: bold; transition: background-color 0.2s; }
+        button:hover { background-color: #0056b3; }
+        .btn-secondary { background-color: var(--secondary-color); } .btn-secondary:hover { background-color: #3a3a3a; }
+        .btn-danger { background-color: var(--red-color); } .btn-danger:hover { background-color: #c82333; }
+        #clear-data-btn { margin-top: 15px; width: 100%; }
+        #drop-zone, #edit-drop-zone { border: 2px dashed var(--border-color); border-radius: 4px; padding: 20px; text-align: center; cursor: pointer; transition: border-color 0.3s, background-color 0.3s; background-size: cover; background-position: center; min-height: 50px; }
+        #drop-zone.dragover, #edit-drop-zone.dragover { border-color: var(--blue-color); background-color: #2a2a2a; }
+        #drop-zone-text, #edit-drop-zone-text { color: #888; }
+        #storage-warning { font-size: 0.75em; color: #888; text-align: center; margin-top: 5px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 0.9em; }
+        th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid var(--border-color); }
+        th { background-color: var(--secondary-color); font-size: 0.85em; }
+        td:nth-child(3), td:nth-child(4) { font-family: 'Courier New', monospace; }
+        tr:hover { background-color: #252525; }
+        .profit { color: var(--green-color); font-weight: bold; } .loss { color: var(--red-color); font-weight: bold; }
+        .action-btn { background: none; border: none; cursor: pointer; font-size: 1.2em; padding: 5px; }
+        .edit-btn { color: var(--blue-color); } .delete-btn { color: var(--red-color); }
+        .screenshot-link { color: var(--blue-color); text-decoration: none; } .screenshot-link:hover { text-decoration: underline; }
+        .calendar-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
+        #month-year { font-size: 1.5em; font-weight: bold; }
+        .calendar-nav { background: var(--secondary-color); border: 1px solid var(--border-color); color: var(--text-color); padding: 5px 12px; border-radius: 4px; cursor: pointer;}
+        .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; }
+        .calendar-day-name { text-align: center; font-weight: bold; color: #aaa; padding-bottom: 10px; font-size: 0.8em; }
+        .calendar-day { background-color: var(--secondary-color); border: 1px solid var(--border-color); border-radius: 4px; min-height: 80px; padding: 8px; font-size: 0.9em; transition: background-color 0.2s; }
+        .calendar-day.other-month { visibility: hidden; }
+        .calendar-day .day-number { font-weight: bold; }
+        .calendar-day .day-pl { margin-top: 10px; font-weight: bold; font-size: 1.2em; text-align: center; }
+        .calendar-day.profit-day { background-color: rgba(40, 167, 69, 0.3); border-color: var(--green-color); }
+        .calendar-day.loss-day { background-color: rgba(220, 53, 69, 0.3); border-color: var(--red-color); }
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); display: none; justify-content: center; align-items: center; z-index: 1000; }
+        .modal-content { background: var(--primary-color); padding: 30px; border-radius: 8px; width: 90%; max-width: 400px; border: 1px solid var(--border-color); }
+        .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        .modal-header h2 { border: none; margin: 0;}
+        .modal-body { margin-bottom: 20px; }
+        .modal-footer { display: flex; justify-content: flex-end; gap: 10px; }
+        .close-modal { font-size: 1.5em; cursor: pointer; background: none; border: none; color: var(--text-color); }
+        @media (max-width: 900px) { .container { grid-template-columns: 1fr; } }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Sidebar and Main Content -->
+        <div class="sidebar">
+            <div class="card">
+                <h2>New Entry</h2>
+                <form id="trade-form">
+                    <div class="form-group"><label for="date">Date</label><input type="date" id="date" required></div>
+                    <div class="form-row">
+                        <div class="form-group" style="width: 50%;"><label for="result">Result</label><select id="result"><option value="win">Win</option><option value="loss">Loss</option></select></div>
+                        <div class="form-group" style="width: 50%;"><label for="pl">P/L ($)</label><input type="number" step="any" id="pl" placeholder="150.50" required></div>
+                    </div>
+                    <div class="form-group"><label for="symbol">Symbol (Optional)</label><input type="text" id="symbol" placeholder="e.g., SPY"></div>
+                    <div class="form-row">
+                        <div class="form-group" style="width: 50%;"><label for="entry-price">Entry Price</label><input type="number" step="any" id="entry-price" placeholder="5850.00"></div>
+                        <div class="form-group" style="width: 50%;"><label for="exit-price">Exit Price</label><input type="number" step="any" id="exit-price" placeholder="5862.50"></div>
+                    </div>
+                    <div class="form-group">
+                        <label>Screenshot</label>
+                        <div id="drop-zone"><span id="drop-zone-text">Drop image here or click</span></div>
+                        <p id="storage-warning">Images are stored in your browser.</p>
+                        <input type="file" id="file-input" accept="image/*" style="display: none;">
+                    </div>
+                    <div class="form-group"><label for="notes">Notes / Strategy</label><textarea id="notes" rows="4" placeholder="Why did you take this trade?"></textarea></div>
+                    <button type="submit">Log Entry</button>
+                </form>
+            </div>
+            <div class="card">
+                <h1>Dashboard</h1>
+                <div class="dashboard">
+                    <div class="stat"><div class="stat-title">Today's P/L</div><div class="stat-value" id="today-pl">$0.00</div></div>
+                    <div class="stat"><div class="stat-title">Today's Win Rate</div><div class="stat-value" id="today-win-rate">0%</div></div>
+                    <div class="stat"><div class="stat-title">This Week P/L</div><div class="stat-value" id="week-pl">$0.00</div></div>
+                    <div class="stat"><div class="stat-title">This Month P/L</div><div class="stat-value" id="month-pl">$0.00</div></div>
+                    <div class="stat"><div class="stat-title">Total P/L</div><div class="stat-value" id="total-pl">$0.00</div></div>
+                    <div class="stat"><div class="stat-title">Overall Win Rate</div><div class="stat-value" id="overall-win-rate">0%</div></div>
+                </div>
+                <button id="clear-data-btn" class="btn-danger">Clear All Data</button>
+            </div>
+            <div class="card">
+                <h2>Data Management</h2>
+                <button id="export-json-btn" class="btn-secondary" style="width: 100%; margin-bottom: 10px;">💾 Export Backup (JSON)</button>
+                <button id="import-json-btn" class="btn-secondary" style="width: 100%; margin-bottom: 10px;">📂 Import Backup</button>
+                <input type="file" id="json-file-input" accept=".json" style="display: none;">
+                <p style="font-size: 0.8em; color: #888; text-align: center; margin-top: 10px;">Auto-saves to browser storage</p>
+            </div>
+        </div>
+        <div class="main-content">
+            <div class="card">
+                <h2>Performance Calendar</h2>
+                <div class="calendar-header">
+                    <button id="prev-month" class="calendar-nav">&lt;</button><h2 id="month-year" style="border: none; margin: 0;"></h2><button id="next-month" class="calendar-nav">&gt;</button>
+                </div>
+                <div class="calendar-grid" id="calendar-days-header"></div><div class="calendar-grid" id="calendar-grid-body"></div>
+            </div>
+            <div class="card">
+                <h2>Trade History</h2>
+                <table>
+                    <thead><tr><th>Date</th><th>Symbol</th><th>Entry</th><th>Exit</th><th>Result</th><th>P/L</th><th>Notes</th><th>Chart</th><th>Actions</th></tr></thead>
+                    <tbody id="trades-table-body"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Modals -->
+    <div id="edit-modal" class="modal-overlay">
+        <div class="modal-content">
+           <!-- Edit form content will be injected here -->
+        </div>
+    </div>
+    <div id="confirm-modal" class="modal-overlay">
+        <div class="modal-content">
+            <div class="modal-header"><h2 id="confirm-title">Confirm</h2><button class="close-modal" data-target="confirm-modal">&times;</button></div>
+            <div class="modal-body"><p id="confirm-text"></p></div>
+            <div class="modal-footer"><button type="button" class="close-modal btn-secondary" data-target="confirm-modal">Cancel</button><button id="confirm-action-btn" class="btn-danger">Confirm</button></div>
+        </div>
+    </div>
+
+    <script>
+    document.addEventListener('DOMContentLoaded', () => {
+        // --- DOM ELEMENT SELECTORS ---
+        const form = document.getElementById('trade-form'), tradesTableBody = document.getElementById('trades-table-body');
+        const monthYearEl = document.getElementById('month-year'), calendarGridBody = document.getElementById('calendar-grid-body'), calendarDaysHeader = document.getElementById('calendar-days-header');
+        const dropZone = document.getElementById('drop-zone'), dropZoneText = document.getElementById('drop-zone-text'), fileInput = document.getElementById('file-input');
+        const editModal = document.getElementById('edit-modal');
+        const confirmModal = document.getElementById('confirm-modal'), confirmActionBtn = document.getElementById('confirm-action-btn');
+        const confirmTitle = document.getElementById('confirm-title'), confirmText = document.getElementById('confirm-text');
+        const clearDataBtn = document.getElementById('clear-data-btn');
+        const exportJsonBtn = document.getElementById('export-json-btn');
+        const importJsonBtn = document.getElementById('import-json-btn');
+        const jsonFileInput = document.getElementById('json-file-input');
+
+        // --- APP STATE ---
+        let trades = [], currentDate = new Date(), newScreenshotDataUrl = null, editScreenshotDataUrl = null, currentAction = null;
+
+        // --- CORE FUNCTIONS ---
+        const renderAll = () => { renderTradesTable(); renderCalendar(); updateDashboard(); saveTrades(); };
+        const saveTrades = () => { 
+            try { 
+                localStorage.setItem('trades', JSON.stringify(trades)); 
+                console.log('Auto-saved:', trades.length, 'trades');
+            } catch (e) { 
+                alert('Error: Could not save trades.'); 
+            } 
+        };
+        const loadTrades = () => {
+            let loadedTrades = JSON.parse(localStorage.getItem('trades')) || [];
+            trades = loadedTrades.map((trade, index) => ({ ...trade, id: trade.id || Date.now() + index }));
+        };
+        
+        // --- EXPORT/IMPORT FUNCTIONS ---
+        const exportToJson = () => {
+            if (trades.length === 0) {
+                alert('No trades to export.');
+                return;
+            }
+            
+            const dataStr = JSON.stringify(trades, null, 2);
+            const blob = new Blob([dataStr], { type: 'application/json' });
+            const link = document.createElement('a');
+            const url = URL.createObjectURL(blob);
+            const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
+            link.setAttribute('href', url);
+            link.setAttribute('download', `trades_backup_${timestamp}.json`);
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+        };
+        
+        const importFromJson = (file) => {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    const importedTrades = JSON.parse(e.target.result);
+                    
+                    if (!Array.isArray(importedTrades)) {
+                        alert('Invalid backup file format.');
+                        return;
+                    }
+                    
+                    if (importedTrades.length > 0) {
+                        if (trades.length > 0) {
+                            if (confirm(`Import ${importedTrades.length} trades? This will replace your current ${trades.length} trades.`)) {
+                                trades = importedTrades;
+                                renderAll();
+                                alert(`Successfully imported ${importedTrades.length} trades.`);
+                            }
+                        } else {
+                            trades = importedTrades;
+                            renderAll();
+                            alert(`Successfully imported ${importedTrades.length} trades.`);
+                        }
+                    }
+                } catch (error) {
+                    alert('Error importing backup: ' + error.message);
+                }
+            };
+            reader.readAsText(file);
+        };
+        
+        // --- DATE HELPERS (RELIABLE & TIMEZONE-SAFE) ---
+        const toLocalYYYYMMDD = (dateObj) => {
+            return new Date(dateObj.getFullYear(), dateObj.getMonth(), dateObj.getDate()).toLocaleDateString('en-CA');
+        };
+
+        // --- RENDER FUNCTIONS ---
+        const renderTradesTable = () => {
+            tradesTableBody.innerHTML = '';
+            [...trades].sort((a, b) => new Date(b.date) - new Date(a.date)).forEach(trade => {
+                const pl = parseFloat(trade.pl);
+                if (isNaN(pl) || !trade.result || !trade.id) { console.error("Skipping malformed trade:", trade); return; }
+                const plClass = trade.result === 'win' ? 'profit' : 'loss';
+                
+                // Check if screenshot exists and is valid
+                let chartCell = 'N/A';
+                if (trade.screenshot && trade.screenshot.trim() !== '' && trade.screenshot !== 'null') {
+                    chartCell = `<a href="${trade.screenshot}" target="_blank" class="screenshot-link">📊 View</a>`;
+                }
+                
+                const entryPrice = trade.entryPrice ? trade.entryPrice.toFixed(2) : '-';
+                const exitPrice = trade.exitPrice ? trade.exitPrice.toFixed(2) : '-';
+                const symbol = trade.symbol || '-';
+                
+                tradesTableBody.innerHTML += `<tr><td>${trade.date}</td><td>${symbol}</td><td>${entryPrice}</td><td>${exitPrice}</td><td class="${plClass}">${trade.result.charAt(0).toUpperCase() + trade.result.slice(1)}</td><td class="${plClass}">${pl.toFixed(2)}</td><td>${trade.notes || ''}</td><td>${chartCell}</td><td><button class="action-btn edit-btn" onclick="openEditModal(${trade.id})">✏️</button><button class="action-btn delete-btn" onclick="confirmDeleteTrade(${trade.id})">✖</button></td></tr>`;
+            });
+        };
+        
+        const updateDashboard = () => {
+            const todayStr = toLocalYYYYMMDD(new Date());
+            const now = new Date();
+            const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+            const dayOfWeek = today.getDay();
+            const firstDayOfWeek = new Date(today);
+            firstDayOfWeek.setDate(today.getDate() - dayOfWeek);
+            const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+
+            const todayTrades = trades.filter(t => t.date === todayStr);
+            const weekTrades = trades.filter(t => new Date(t.date) >= firstDayOfWeek);
+            const monthTrades = trades.filter(t => new Date(t.date) >= firstDayOfMonth);
+
+            const calculatePL = (arr) => arr.reduce((sum, t) => sum + (parseFloat(t.pl) || 0), 0);
+            const todayPl = calculatePL(todayTrades), weekPl = calculatePL(weekTrades), monthPl = calculatePL(monthTrades), totalPl = calculatePL(trades);
+
+            const calculateWinRate = (arr) => arr.length > 0 ? (arr.filter(t => t.result === 'win').length / arr.length) * 100 : 0;
+            const todayWinRate = calculateWinRate(todayTrades), overallWinRate = calculateWinRate(trades);
+
+            const updateStat = (id, value, isCurrency = true) => {
+                const el = document.getElementById(id); if (!el) return;
+                if (isCurrency) { el.textContent = `$${value.toFixed(2)}`; el.className = `stat-value ${value >= 0 ? 'profit' : 'loss'}`; } 
+                else { el.textContent = `${value.toFixed(0)}%`; }
+            };
+            
+            updateStat('today-pl', todayPl); updateStat('today-win-rate', todayWinRate, false); updateStat('week-pl', weekPl);
+            updateStat('month-pl', monthPl); updateStat('total-pl', totalPl); updateStat('overall-win-rate', overallWinRate, false);
+        };
+
+        const renderCalendar = () => {
+            const month = currentDate.getMonth(), year = currentDate.getFullYear();
+            monthYearEl.textContent = `${currentDate.toLocaleString('default', { month: 'long' })} ${year}`;
+            if (calendarDaysHeader.innerHTML === '') { calendarDaysHeader.innerHTML = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(d => `<div class="calendar-day-name">${d}</div>`).join(''); }
+            const tradesByDate = trades.reduce((acc, trade) => { const pl = parseFloat(trade.pl) || 0; if (!acc[trade.date]) acc[trade.date] = { totalPl: 0 }; acc[trade.date].totalPl += pl; return acc; }, {});
+            const firstDayOfMonth = new Date(year, month, 1).getDay(), daysInMonth = new Date(year, month + 1, 0).getDate();
+            let calendarHtml = Array.from({ length: firstDayOfMonth }, () => '<div class="calendar-day other-month"></div>');
+            for (let i = 1; i <= daysInMonth; i++) {
+                const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(i).padStart(2, '0')}`;
+                const dayData = tradesByDate[dateStr]; let dayClass = 'calendar-day', plHtml = '';
+                if (dayData) { dayClass += dayData.totalPl >= 0 ? ' profit-day' : ' loss-day'; plHtml = `<div class="day-pl ${dayData.totalPl >= 0 ? 'profit' : 'loss'}">${dayData.totalPl >= 0 ? '+' : ''}$${dayData.totalPl.toFixed(2)}</div>`; }
+                calendarHtml.push(`<div class="${dayClass}"><div class="day-number">${i}</div>${plHtml}</div>`);
+            }
+            calendarGridBody.innerHTML = calendarHtml.join('');
+        };
+        
+        const addTrade = (event) => {
+            event.preventDefault(); const result = document.getElementById('result').value; let pl = parseFloat(document.getElementById('pl').value);
+            if (isNaN(pl)) { alert('Please enter a valid P/L amount.'); return; }
+            if ((result === 'win' && pl < 0) || (result === 'loss' && pl > 0)) pl = -pl;
+            const entryPrice = document.getElementById('entry-price').value;
+            const exitPrice = document.getElementById('exit-price').value;
+            trades.push({ 
+                id: Date.now(), 
+                date: document.getElementById('date').value, 
+                result, 
+                pl, 
+                symbol: document.getElementById('symbol').value, 
+                entryPrice: entryPrice ? parseFloat(entryPrice) : null,
+                exitPrice: exitPrice ? parseFloat(exitPrice) : null,
+                screenshot: newScreenshotDataUrl, 
+                notes: document.getElementById('notes').value 
+            });
+            resetFormState(); renderAll();
+        };
+
+        // --- MODAL & ACTION LOGIC ---
+        const closeModal = (modalId) => { document.getElementById(modalId).style.display = 'none'; };
+        const openConfirmModal = (title, text, action) => {
+            confirmTitle.textContent = title; confirmText.textContent = text;
+            currentAction = action; confirmModal.style.display = 'flex';
+        };
+
+        window.confirmDeleteTrade = (id) => {
+            openConfirmModal('Confirm Deletion', 'Are you sure you want to delete this entry? This action cannot be undone.', () => {
+                trades = trades.filter(trade => trade.id !== id);
+                renderAll(); closeModal('confirm-modal');
+            });
+        };
+        
+        clearDataBtn.addEventListener('click', () => {
+             openConfirmModal('Clear All Data', 'Are you sure you want to permanently delete all journal entries? This cannot be undone.', () => {
+                localStorage.removeItem('trades'); location.reload();
+            });
+        });
+
+        confirmActionBtn.addEventListener('click', () => { if (typeof currentAction === 'function') { currentAction(); } });
+        
+        window.openEditModal = (id) => {
+            const trade = trades.find(t => t.id === id); if (!trade) return;
+            editModal.querySelector('.modal-content').innerHTML = `
+                <div class="modal-header"><h2>Edit Entry</h2><button class="close-modal" data-target="edit-modal">&times;</button></div>
+                <form id="edit-form-content">
+                    <input type="hidden" id="edit-id" value="${id}">
+                    <div class="form-group"><label for="edit-date">Date</label><input type="date" id="edit-date" value="${trade.date}" required></div>
+                    <div class="form-row">
+                        <div class="form-group" style="width: 50%;"><label for="edit-result">Result</label><select id="edit-result"><option value="win" ${trade.result === 'win' ? 'selected' : ''}>Win</option><option value="loss" ${trade.result === 'loss' ? 'selected' : ''}>Loss</option></select></div>
+                        <div class="form-group" style="width: 50%;"><label for="edit-pl">P/L ($)</label><input type="number" step="any" id="edit-pl" value="${trade.pl}" required></div>
+                    </div>
+                    <div class="form-group"><label for="edit-symbol">Symbol</label><input type="text" id="edit-symbol" value="${trade.symbol || ''}"></div>
+                    <div class="form-row">
+                        <div class="form-group" style="width: 50%;"><label for="edit-entry-price">Entry Price</label><input type="number" step="any" id="edit-entry-price" value="${trade.entryPrice || ''}"></div>
+                        <div class="form-group" style="width: 50%;"><label for="edit-exit-price">Exit Price</label><input type="number" step="any" id="edit-exit-price" value="${trade.exitPrice || ''}"></div>
+                    </div>
+                    <div class="form-group">
+                        <label>Screenshot</label><div id="edit-drop-zone"><span id="edit-drop-zone-text">Drop new image or click</span></div>
+                        <input type="file" id="edit-file-input" accept="image/*" style="display: none;">
+                    </div>
+                    <div class="form-group"><label for="edit-notes">Notes</label><textarea id="edit-notes" rows="4">${trade.notes || ''}</textarea></div>
+                    <div class="modal-footer"><button type="button" class="close-modal btn-secondary" data-target="edit-modal">Cancel</button><button type="submit">Save Changes</button></div>
+                </form>
+            `;
+            editScreenshotDataUrl = trade.screenshot;
+            const editDropZone = document.getElementById('edit-drop-zone'), editDropZoneText = document.getElementById('edit-drop-zone-text'), editFileInput = document.getElementById('edit-file-input');
+            editDropZone.style.backgroundImage = trade.screenshot ? `url('${trade.screenshot}')` : 'none';
+            editDropZoneText.style.display = trade.screenshot ? 'none' : 'block';
+            setupDropZone(editDropZone, editFileInput, (dataUrl) => { editScreenshotDataUrl = dataUrl; editDropZone.style.backgroundImage = `url('${dataUrl}')`; editDropZoneText.style.display = 'none'; });
+            document.getElementById('edit-form-content').addEventListener('submit', (e) => {
+                e.preventDefault(); const id = parseInt(e.target.querySelector('#edit-id').value), index = trades.findIndex(t => t.id === id); if (index === -1) return;
+                const result = e.target.querySelector('#edit-result').value; let pl = parseFloat(e.target.querySelector('#edit-pl').value);
+                if ((result === 'win' && pl < 0) || (result === 'loss' && pl > 0)) pl = -pl;
+                const entryPrice = e.target.querySelector('#edit-entry-price').value;
+                const exitPrice = e.target.querySelector('#edit-exit-price').value;
+                trades[index] = { 
+                    ...trades[index], 
+                    date: e.target.querySelector('#edit-date').value, 
+                    result, 
+                    pl, 
+                    symbol: e.target.querySelector('#edit-symbol').value, 
+                    entryPrice: entryPrice ? parseFloat(entryPrice) : null,
+                    exitPrice: exitPrice ? parseFloat(exitPrice) : null,
+                    notes: e.target.querySelector('#edit-notes').value, 
+                    screenshot: editScreenshotDataUrl 
+                };
+                renderAll(); closeModal('edit-modal');
+            });
+            editModal.querySelectorAll('.close-modal').forEach(btn => btn.addEventListener('click', () => closeModal('edit-modal')));
+            editModal.style.display = 'flex';
+        };
+
+        const handleFile = (file, callback) => {
+            if (!file || !file.type.startsWith('image/')) return;
+            const reader = new FileReader(); reader.onload = (e) => callback(e.target.result); reader.readAsDataURL(file);
+        };
+        const setupDropZone = (dz, fileInputEl, onFileLoad) => {
+            dz.addEventListener('click', () => fileInputEl.click());
+            fileInputEl.addEventListener('change', (e) => handleFile(e.target.files[0], onFileLoad));
+            dz.addEventListener('dragover', (e) => { e.preventDefault(); dz.classList.add('dragover'); });
+            dz.addEventListener('dragleave', () => dz.classList.remove('dragover'));
+            dz.addEventListener('drop', (e) => { e.preventDefault(); dz.classList.remove('dragover'); handleFile(e.dataTransfer.files[0], onFileLoad); });
+        };
+        setupDropZone(dropZone, fileInput, (dataUrl) => { newScreenshotDataUrl = dataUrl; dropZone.style.backgroundImage = `url('${dataUrl}')`; dropZoneText.style.display = 'none'; });
+
+        const resetFormState = () => {
+            form.reset(); document.getElementById('date').value = toLocalYYYYMMDD(new Date()); newScreenshotDataUrl = null;
+            dropZone.style.backgroundImage = 'none'; dropZoneText.style.display = 'block';
+        };
+        form.addEventListener('submit', addTrade);
+        document.getElementById('prev-month').addEventListener('click', () => { currentDate.setMonth(currentDate.getMonth() - 1); renderCalendar(); });
+        document.getElementById('next-month').addEventListener('click', () => { currentDate.setMonth(currentDate.getMonth() + 1); renderCalendar(); });
+        document.querySelectorAll('.close-modal').forEach(btn => btn.addEventListener('click', (e) => closeModal(e.target.closest('.modal-overlay').id)));
+        
+        // JSON Export/Import Event Listeners
+        exportJsonBtn.addEventListener('click', exportToJson);
+        importJsonBtn.addEventListener('click', () => jsonFileInput.click());
+        jsonFileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                importFromJson(e.target.files[0]);
+                e.target.value = ''; // Reset file input
+            }
+        });
+        
+        loadTrades();
+        resetFormState();
+        renderAll();
+    });
+    </script>
+</body>
+</html>
