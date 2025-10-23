@@ -19,10 +19,11 @@
         h1, h2 { border-bottom: 2px solid var(--blue-color); padding-bottom: 10px; margin-top: 0; }
         .card { background-color: var(--primary-color); border-radius: 8px; padding: 20px; margin-bottom: 20px; border: 1px solid var(--border-color); }
         .dashboard { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
-        .stat { background-color: var(--secondary-color); padding: 15px; border-radius: 6px; text-align: center; }
-        .stat-title { font-size: 0.9em; color: #aaa; margin-bottom: 8px; text-transform: uppercase; }
+        .stat { background-color: var(--secondary-color); padding: 15px; border-radius: 6px; text-align: center; min-height: 80px; display: flex; flex-direction: column; justify-content: center; }
+        .stat-title { font-size: 0.85em; color: #aaa; margin-bottom: 8px; text-transform: uppercase; white-space: nowrap; }
         .stat-value { font-size: 1.6em; font-weight: bold; }
         form { display: flex; flex-direction: column; gap: 15px; }
+        .form-group { display: flex; flex-direction: column; }
         label { margin-bottom: 5px; font-size: 0.9em; color: #ccc; }
         input, select, textarea {
             background-color: var(--secondary-color); color: var(--text-color); border: 1px solid var(--border-color);
@@ -78,13 +79,17 @@
                 <form id="trade-form">
                     <div class="form-group"><label for="date">Date</label><input type="date" id="date" required></div>
                     <div class="form-row">
-                        <div class="form-group" style="width: 50%;"><label for="result">Result</label><select id="result"><option value="win">Win</option><option value="loss">Loss</option></select></div>
-                        <div class="form-group" style="width: 50%;"><label for="pl">P/L ($)</label><input type="number" step="any" id="pl" placeholder="150.50" required></div>
+                        <div class="form-group" style="width: 50%;"><label for="symbol">Symbol</label><input type="text" id="symbol" placeholder="ES1" value="ES1"></div>
+                        <div class="form-group" style="width: 50%;"><label for="direction">Direction</label><select id="direction" required><option value="long">Long</option><option value="short">Short</option></select></div>
                     </div>
-                    <div class="form-group"><label for="symbol">Symbol (Optional)</label><input type="text" id="symbol" placeholder="e.g., SPY"></div>
                     <div class="form-row">
-                        <div class="form-group" style="width: 50%;"><label for="entry-price">Entry Price</label><input type="number" step="any" id="entry-price" placeholder="5850.00"></div>
-                        <div class="form-group" style="width: 50%;"><label for="exit-price">Exit Price</label><input type="number" step="any" id="exit-price" placeholder="5862.50"></div>
+                        <div class="form-group" style="width: 50%;"><label for="entry-price">Entry Price</label><input type="number" step="any" id="entry-price" placeholder="5850.00" required></div>
+                        <div class="form-group" style="width: 50%;"><label for="exit-price">Exit Price</label><input type="number" step="any" id="exit-price" placeholder="5862.50" required></div>
+                    </div>
+                    <div class="form-group"><label for="tick-value">Tick Value ($)</label><input type="number" step="any" id="tick-value" placeholder="12.50" value="12.50" required></div>
+                    <div class="form-row">
+                        <div class="form-group" style="width: 50%;"><label for="time-in">Time In</label><input type="time" id="time-in" step="1" value="09:30:00"></div>
+                        <div class="form-group" style="width: 50%;"><label for="time-out">Time Out</label><input type="time" id="time-out" step="1" value="09:35:00"></div>
                     </div>
                     <div class="form-group">
                         <label>Screenshot</label>
@@ -127,7 +132,7 @@
             <div class="card">
                 <h2>Trade History</h2>
                 <table>
-                    <thead><tr><th>Date</th><th>Symbol</th><th>Entry</th><th>Exit</th><th>Result</th><th>P/L</th><th>Notes</th><th>Chart</th><th>Actions</th></tr></thead>
+                    <thead><tr><th>Date</th><th>Symbol</th><th>Entry</th><th>Exit</th><th>Time In</th><th>Time Out</th><th>Duration</th><th>Result</th><th>P/L</th><th>Notes</th><th>Chart</th><th>Actions</th></tr></thead>
                     <tbody id="trades-table-body"></tbody>
                 </table>
             </div>
@@ -240,7 +245,12 @@
         // --- RENDER FUNCTIONS ---
         const renderTradesTable = () => {
             tradesTableBody.innerHTML = '';
-            [...trades].sort((a, b) => new Date(b.date) - new Date(a.date)).forEach(trade => {
+            [...trades].sort((a, b) => {
+                // Sort by date and time (latest first)
+                const dateTimeA = new Date(a.date + ' ' + (a.timeIn || '00:00:00'));
+                const dateTimeB = new Date(b.date + ' ' + (b.timeIn || '00:00:00'));
+                return dateTimeB - dateTimeA;
+            }).forEach(trade => {
                 const pl = parseFloat(trade.pl);
                 if (isNaN(pl) || !trade.result || !trade.id) { console.error("Skipping malformed trade:", trade); return; }
                 const plClass = trade.result === 'win' ? 'profit' : 'loss';
@@ -254,8 +264,41 @@
                 const entryPrice = trade.entryPrice ? trade.entryPrice.toFixed(2) : '-';
                 const exitPrice = trade.exitPrice ? trade.exitPrice.toFixed(2) : '-';
                 const symbol = trade.symbol || '-';
+                const timeIn = trade.timeIn || '-';
+                const timeOut = trade.timeOut || '-';
                 
-                tradesTableBody.innerHTML += `<tr><td>${trade.date}</td><td>${symbol}</td><td>${entryPrice}</td><td>${exitPrice}</td><td class="${plClass}">${trade.result.charAt(0).toUpperCase() + trade.result.slice(1)}</td><td class="${plClass}">${pl.toFixed(2)}</td><td>${trade.notes || ''}</td><td>${chartCell}</td><td><button class="action-btn edit-btn" onclick="openEditModal(${trade.id})">✏️</button><button class="action-btn delete-btn" onclick="confirmDeleteTrade(${trade.id})">✖</button></td></tr>`;
+                // Calculate duration
+                let duration = '-';
+                if (trade.timeIn && trade.timeOut) {
+                    const inParts = trade.timeIn.split(':').map(Number);
+                    const outParts = trade.timeOut.split(':').map(Number);
+                    const inHours = inParts[0] || 0;
+                    const inMinutes = inParts[1] || 0;
+                    const inSeconds = inParts[2] || 0;
+                    const outHours = outParts[0] || 0;
+                    const outMinutes = outParts[1] || 0;
+                    const outSeconds = outParts[2] || 0;
+                    
+                    const inTotalSeconds = inHours * 3600 + inMinutes * 60 + inSeconds;
+                    const outTotalSeconds = outHours * 3600 + outMinutes * 60 + outSeconds;
+                    const durationSeconds = outTotalSeconds - inTotalSeconds;
+                    
+                    if (durationSeconds >= 0) {
+                        const hours = Math.floor(durationSeconds / 3600);
+                        const minutes = Math.floor((durationSeconds % 3600) / 60);
+                        const seconds = durationSeconds % 60;
+                        
+                        if (hours > 0) {
+                            duration = `${hours}h ${minutes}m ${seconds}s`;
+                        } else if (minutes > 0) {
+                            duration = `${minutes}m ${seconds}s`;
+                        } else {
+                            duration = `${seconds}s`;
+                        }
+                    }
+                }
+                
+                tradesTableBody.innerHTML += `<tr><td>${trade.date}</td><td>${symbol}</td><td>${entryPrice}</td><td>${exitPrice}</td><td>${timeIn}</td><td>${timeOut}</td><td>${duration}</td><td class="${plClass}">${trade.result.charAt(0).toUpperCase() + trade.result.slice(1)}</td><td class="${plClass}">${pl.toFixed(2)}</td><td>${trade.notes || ''}</td><td>${chartCell}</td><td><button class="action-btn edit-btn" onclick="openEditModal(${trade.id})">✏️</button><button class="action-btn delete-btn" onclick="confirmDeleteTrade(${trade.id})">✖</button></td></tr>`;
             });
         };
         
@@ -305,19 +348,38 @@
         };
         
         const addTrade = (event) => {
-            event.preventDefault(); const result = document.getElementById('result').value; let pl = parseFloat(document.getElementById('pl').value);
-            if (isNaN(pl)) { alert('Please enter a valid P/L amount.'); return; }
-            if ((result === 'win' && pl < 0) || (result === 'loss' && pl > 0)) pl = -pl;
-            const entryPrice = document.getElementById('entry-price').value;
-            const exitPrice = document.getElementById('exit-price').value;
+            event.preventDefault();
+            const entryPrice = parseFloat(document.getElementById('entry-price').value);
+            const exitPrice = parseFloat(document.getElementById('exit-price').value);
+            const tickValue = parseFloat(document.getElementById('tick-value').value);
+            const direction = document.getElementById('direction').value;
+            const timeIn = document.getElementById('time-in').value;
+            const timeOut = document.getElementById('time-out').value;
+            
+            // Calculate P/L based on direction
+            let priceDiff;
+            if (direction === 'long') {
+                priceDiff = exitPrice - entryPrice; // Long: profit when exit > entry
+            } else {
+                priceDiff = entryPrice - exitPrice; // Short: profit when entry > exit
+            }
+            // Convert price difference to number of ticks (0.25 = 1 tick)
+            const numTicks = priceDiff / 0.25;
+            const calculatedPL = numTicks * tickValue;
+            const result = calculatedPL >= 0 ? 'win' : 'loss';
+            
             trades.push({ 
                 id: Date.now(), 
                 date: document.getElementById('date').value, 
-                result, 
-                pl, 
+                result: result, 
+                pl: calculatedPL, 
                 symbol: document.getElementById('symbol').value, 
-                entryPrice: entryPrice ? parseFloat(entryPrice) : null,
-                exitPrice: exitPrice ? parseFloat(exitPrice) : null,
+                direction: direction,
+                entryPrice: entryPrice,
+                exitPrice: exitPrice,
+                tickValue: tickValue,
+                timeIn: timeIn || null,
+                timeOut: timeOut || null,
                 screenshot: newScreenshotDataUrl, 
                 notes: document.getElementById('notes').value 
             });
@@ -353,14 +415,16 @@
                 <form id="edit-form-content">
                     <input type="hidden" id="edit-id" value="${id}">
                     <div class="form-group"><label for="edit-date">Date</label><input type="date" id="edit-date" value="${trade.date}" required></div>
-                    <div class="form-row">
-                        <div class="form-group" style="width: 50%;"><label for="edit-result">Result</label><select id="edit-result"><option value="win" ${trade.result === 'win' ? 'selected' : ''}>Win</option><option value="loss" ${trade.result === 'loss' ? 'selected' : ''}>Loss</option></select></div>
-                        <div class="form-group" style="width: 50%;"><label for="edit-pl">P/L ($)</label><input type="number" step="any" id="edit-pl" value="${trade.pl}" required></div>
-                    </div>
                     <div class="form-group"><label for="edit-symbol">Symbol</label><input type="text" id="edit-symbol" value="${trade.symbol || ''}"></div>
+                    <div class="form-group"><label for="edit-direction">Direction</label><select id="edit-direction" required><option value="long" ${trade.direction === 'long' ? 'selected' : ''}>Long</option><option value="short" ${trade.direction === 'short' ? 'selected' : ''}>Short</option></select></div>
                     <div class="form-row">
-                        <div class="form-group" style="width: 50%;"><label for="edit-entry-price">Entry Price</label><input type="number" step="any" id="edit-entry-price" value="${trade.entryPrice || ''}"></div>
-                        <div class="form-group" style="width: 50%;"><label for="edit-exit-price">Exit Price</label><input type="number" step="any" id="edit-exit-price" value="${trade.exitPrice || ''}"></div>
+                        <div class="form-group" style="width: 50%;"><label for="edit-entry-price">Entry Price</label><input type="number" step="any" id="edit-entry-price" value="${trade.entryPrice || ''}" required></div>
+                        <div class="form-group" style="width: 50%;"><label for="edit-exit-price">Exit Price</label><input type="number" step="any" id="edit-exit-price" value="${trade.exitPrice || ''}" required></div>
+                    </div>
+                    <div class="form-group"><label for="edit-tick-value">Tick Value ($)</label><input type="number" step="any" id="edit-tick-value" value="${trade.tickValue || ''}" required></div>
+                    <div class="form-row">
+                        <div class="form-group" style="width: 50%;"><label for="edit-time-in">Time In</label><input type="time" id="edit-time-in" step="1" value="${trade.timeIn || ''}"></div>
+                        <div class="form-group" style="width: 50%;"><label for="edit-time-out">Time Out</label><input type="time" id="edit-time-out" step="1" value="${trade.timeOut || ''}"></div>
                     </div>
                     <div class="form-group">
                         <label>Screenshot</label><div id="edit-drop-zone"><span id="edit-drop-zone-text">Drop new image or click</span></div>
@@ -377,18 +441,37 @@
             setupDropZone(editDropZone, editFileInput, (dataUrl) => { editScreenshotDataUrl = dataUrl; editDropZone.style.backgroundImage = `url('${dataUrl}')`; editDropZoneText.style.display = 'none'; });
             document.getElementById('edit-form-content').addEventListener('submit', (e) => {
                 e.preventDefault(); const id = parseInt(e.target.querySelector('#edit-id').value), index = trades.findIndex(t => t.id === id); if (index === -1) return;
-                const result = e.target.querySelector('#edit-result').value; let pl = parseFloat(e.target.querySelector('#edit-pl').value);
-                if ((result === 'win' && pl < 0) || (result === 'loss' && pl > 0)) pl = -pl;
-                const entryPrice = e.target.querySelector('#edit-entry-price').value;
-                const exitPrice = e.target.querySelector('#edit-exit-price').value;
+                const entryPrice = parseFloat(e.target.querySelector('#edit-entry-price').value);
+                const exitPrice = parseFloat(e.target.querySelector('#edit-exit-price').value);
+                const tickValue = parseFloat(e.target.querySelector('#edit-tick-value').value);
+                const direction = e.target.querySelector('#edit-direction').value;
+                const timeIn = e.target.querySelector('#edit-time-in').value;
+                const timeOut = e.target.querySelector('#edit-time-out').value;
+                
+                // Calculate P/L based on direction
+                let priceDiff;
+                if (direction === 'long') {
+                    priceDiff = exitPrice - entryPrice; // Long: profit when exit > entry
+                } else {
+                    priceDiff = entryPrice - exitPrice; // Short: profit when entry > exit
+                }
+                // Convert price difference to number of ticks (0.25 = 1 tick)
+                const numTicks = priceDiff / 0.25;
+                const pl = numTicks * tickValue;
+                const result = pl >= 0 ? 'win' : 'loss';
+                
                 trades[index] = { 
                     ...trades[index], 
                     date: e.target.querySelector('#edit-date').value, 
                     result, 
                     pl, 
                     symbol: e.target.querySelector('#edit-symbol').value, 
-                    entryPrice: entryPrice ? parseFloat(entryPrice) : null,
-                    exitPrice: exitPrice ? parseFloat(exitPrice) : null,
+                    direction: direction,
+                    entryPrice: entryPrice,
+                    exitPrice: exitPrice,
+                    tickValue: tickValue,
+                    timeIn: timeIn || null,
+                    timeOut: timeOut || null,
                     notes: e.target.querySelector('#edit-notes').value, 
                     screenshot: editScreenshotDataUrl 
                 };
@@ -412,8 +495,15 @@
         setupDropZone(dropZone, fileInput, (dataUrl) => { newScreenshotDataUrl = dataUrl; dropZone.style.backgroundImage = `url('${dataUrl}')`; dropZoneText.style.display = 'none'; });
 
         const resetFormState = () => {
-            form.reset(); document.getElementById('date').value = toLocalYYYYMMDD(new Date()); newScreenshotDataUrl = null;
-            dropZone.style.backgroundImage = 'none'; dropZoneText.style.display = 'block';
+            form.reset(); 
+            document.getElementById('date').value = toLocalYYYYMMDD(new Date()); 
+            document.getElementById('symbol').value = 'ES1';
+            document.getElementById('tick-value').value = '12.50';
+            document.getElementById('time-in').value = '09:30:00';
+            document.getElementById('time-out').value = '09:35:00';
+            newScreenshotDataUrl = null;
+            dropZone.style.backgroundImage = 'none'; 
+            dropZoneText.style.display = 'block';
         };
         form.addEventListener('submit', addTrade);
         document.getElementById('prev-month').addEventListener('click', () => { currentDate.setMonth(currentDate.getMonth() - 1); renderCalendar(); });
