@@ -14,13 +14,14 @@
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
             background-color: var(--bg-color); color: var(--text-color); margin: 0; padding: 20px;
         }
-        .container { max-width: 1200px; margin: 0 auto; display: grid; grid-template-columns: 320px 1fr; gap: 20px; }
+        .container { max-width: 1600px; margin: 0 auto; display: grid; grid-template-columns: 320px 1fr; gap: 20px; }
         .main-content { grid-column: 2 / 3; } .sidebar { grid-column: 1 / 2; }
         h1, h2 { border-bottom: 2px solid var(--blue-color); padding-bottom: 10px; margin-top: 0; }
         .card { background-color: var(--primary-color); border-radius: 8px; padding: 20px; margin-bottom: 20px; border: 1px solid var(--border-color); }
         .dashboard { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+        .dashboard .stat { grid-column: 1 / -1; }
         .stat { background-color: var(--secondary-color); padding: 15px; border-radius: 6px; text-align: center; min-height: 80px; display: flex; flex-direction: column; justify-content: center; }
-        .stat-title { font-size: 0.85em; color: #aaa; margin-bottom: 8px; text-transform: uppercase; white-space: nowrap; }
+        .stat-title { font-size: 0.85em; color: #aaa; margin-bottom: 8px; text-transform: uppercase; }
         .stat-value { font-size: 1.6em; font-weight: bold; }
         form { display: flex; flex-direction: column; gap: 15px; }
         .form-group { display: flex; flex-direction: column; }
@@ -60,6 +61,7 @@
         .calendar-day .day-pl { margin-top: 10px; font-weight: bold; font-size: 1.2em; text-align: center; }
         .calendar-day.profit-day { background-color: rgba(40, 167, 69, 0.3); border-color: var(--green-color); }
         .calendar-day.loss-day { background-color: rgba(220, 53, 69, 0.3); border-color: var(--red-color); }
+        .calendar-day.has-trades:hover { cursor: pointer; background-color: #3a3a3a; }
         .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); display: none; justify-content: center; align-items: center; z-index: 1000; }
         .modal-content { background: var(--primary-color); padding: 30px; border-radius: 8px; width: 90%; max-width: 400px; border: 1px solid var(--border-color); }
         .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
@@ -67,7 +69,8 @@
         .modal-body { margin-bottom: 20px; }
         .modal-footer { display: flex; justify-content: flex-end; gap: 10px; }
         .close-modal { font-size: 1.5em; cursor: pointer; background: none; border: none; color: var(--text-color); }
-        @media (max-width: 900px) { .container { grid-template-columns: 1fr; } }
+        #date::-webkit-calendar-picker-indicator { transform: scale(1.8); cursor: pointer; padding-left: 10px; } 
+                @media (max-width: 900px) { .container { grid-template-columns: 1fr; } }
     </style>
 </head>
 <body>
@@ -83,10 +86,14 @@
                         <div class="form-group" style="width: 50%;"><label for="direction">Direction</label><select id="direction" required><option value="long">Long</option><option value="short">Short</option></select></div>
                     </div>
                     <div class="form-row">
-                        <div class="form-group" style="width: 50%;"><label for="entry-price">Entry Price</label><input type="number" step="any" id="entry-price" placeholder="5850.00" required></div>
-                        <div class="form-group" style="width: 50%;"><label for="exit-price">Exit Price</label><input type="number" step="any" id="exit-price" placeholder="5862.50" required></div>
+                        <div class="form-group" style="width: 50%;"><label for="entry-price">Entry Price</label><input type="number" step="any" id="entry-price" placeholder="5850.00"></div>
+                        <div class="form-group" style="width: 50%;"><label for="exit-price">Exit Price</label><input type="number" step="any" id="exit-price" placeholder="5862.50"></div>
                     </div>
-                    <div class="form-group"><label for="tick-value">Tick Value ($)</label><input type="number" step="any" id="tick-value" placeholder="12.50" value="12.50" required></div>
+                    <div class="form-group"><label for="tick-value">Tick Value ($)</label><input type="number" step="any" id="tick-value" placeholder="12.50" value="12.50"></div>
+                    <div class="form-row">
+                        <div class="form-group" style="width: 50%;"><label for="pl-override">P/L Override</label><input type="number" step="any" id="pl-override" placeholder="250.00"></div>
+                        <div class="form-group" style="width: 50%;"><label for="commissions">Commissions</label><input type="number" step="any" id="commissions" placeholder="5.42"></div>
+                    </div>
                     <div class="form-row">
                         <div class="form-group" style="width: 50%;"><label for="time-in">Time In</label><input type="time" id="time-in" step="1" value="09:30:00"></div>
                         <div class="form-group" style="width: 50%;"><label for="time-out">Time Out</label><input type="time" id="time-out" step="1" value="09:35:00"></div>
@@ -102,7 +109,7 @@
                 </form>
             </div>
             <div class="card">
-                <h1>Dashboard</h1>
+                <h2>Dashboard</h2>
                 <div class="dashboard">
                     <div class="stat"><div class="stat-title">Today's P/L</div><div class="stat-value" id="today-pl">$0.00</div></div>
                     <div class="stat"><div class="stat-title">Today's Win Rate</div><div class="stat-value" id="today-win-rate">0%</div></div>
@@ -132,7 +139,7 @@
             <div class="card">
                 <h2>Trade History</h2>
                 <table>
-                    <thead><tr><th>Date</th><th>Symbol</th><th>Entry</th><th>Exit</th><th>Time In</th><th>Time Out</th><th>Duration</th><th>Result</th><th>P/L</th><th>Notes</th><th>Chart</th><th>Actions</th></tr></thead>
+                    <thead><tr><th>Date</th><th>Symbol</th><th>Entry</th><th>Exit</th><th>Time In</th><th>Time Out</th><th>Duration</th><th>Result</th><th>P/L</th><th>Commissions</th><th>Notes</th><th>Chart</th><th>Actions</th></tr></thead>
                     <tbody id="trades-table-body"></tbody>
                 </table>
             </div>
@@ -298,7 +305,8 @@
                     }
                 }
                 
-                tradesTableBody.innerHTML += `<tr><td>${trade.date}</td><td>${symbol}</td><td>${entryPrice}</td><td>${exitPrice}</td><td>${timeIn}</td><td>${timeOut}</td><td>${duration}</td><td class="${plClass}">${trade.result.charAt(0).toUpperCase() + trade.result.slice(1)}</td><td class="${plClass}">${pl.toFixed(2)}</td><td>${trade.notes || ''}</td><td>${chartCell}</td><td><button class="action-btn edit-btn" onclick="openEditModal(${trade.id})">✏️</button><button class="action-btn delete-btn" onclick="confirmDeleteTrade(${trade.id})">✖</button></td></tr>`;
+                const commissions = trade.commissions ? `$${trade.commissions.toFixed(2)}` : '-';
+                tradesTableBody.innerHTML += `<tr><td>${trade.date}</td><td>${symbol}</td><td>${entryPrice}</td><td>${exitPrice}</td><td>${timeIn}</td><td>${timeOut}</td><td>${duration}</td><td class="${plClass}">${trade.result.charAt(0).toUpperCase() + trade.result.slice(1)}</td><td class="${plClass}">${pl.toFixed(2)}</td><td>${commissions}</td><td>${trade.notes || ''}</td><td>${chartCell}</td><td><button class="action-btn edit-btn" onclick="openEditModal(${trade.id})">✏️</button><button class="action-btn delete-btn" onclick="confirmDeleteTrade(${trade.id})">✖</button></td></tr>`;
             });
         };
         
@@ -335,14 +343,29 @@
             const month = currentDate.getMonth(), year = currentDate.getFullYear();
             monthYearEl.textContent = `${currentDate.toLocaleString('default', { month: 'long' })} ${year}`;
             if (calendarDaysHeader.innerHTML === '') { calendarDaysHeader.innerHTML = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(d => `<div class="calendar-day-name">${d}</div>`).join(''); }
-            const tradesByDate = trades.reduce((acc, trade) => { const pl = parseFloat(trade.pl) || 0; if (!acc[trade.date]) acc[trade.date] = { totalPl: 0 }; acc[trade.date].totalPl += pl; return acc; }, {});
+            const tradesByDate = trades.reduce((acc, trade) => {
+                const pl = parseFloat(trade.pl) || 0;
+                if (!acc[trade.date]) {
+                    acc[trade.date] = { totalPl: 0, firstTradeId: trade.id };
+                } else {
+                    // Keep the ID of the first trade encountered for that day
+                }
+                acc[trade.date].totalPl += pl;
+                return acc;
+            }, {});
+
             const firstDayOfMonth = new Date(year, month, 1).getDay(), daysInMonth = new Date(year, month + 1, 0).getDate();
             let calendarHtml = Array.from({ length: firstDayOfMonth }, () => '<div class="calendar-day other-month"></div>');
             for (let i = 1; i <= daysInMonth; i++) {
                 const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(i).padStart(2, '0')}`;
-                const dayData = tradesByDate[dateStr]; let dayClass = 'calendar-day', plHtml = '';
-                if (dayData) { dayClass += dayData.totalPl >= 0 ? ' profit-day' : ' loss-day'; plHtml = `<div class="day-pl ${dayData.totalPl >= 0 ? 'profit' : 'loss'}">${dayData.totalPl >= 0 ? '+' : ''}$${dayData.totalPl.toFixed(2)}</div>`; }
-                calendarHtml.push(`<div class="${dayClass}"><div class="day-number">${i}</div>${plHtml}</div>`);
+                const dayData = tradesByDate[dateStr];
+                let dayClass = 'calendar-day', plHtml = '', tradeIdAttr = '';
+                if (dayData) {
+                    dayClass += dayData.totalPl >= 0 ? ' profit-day has-trades' : ' loss-day has-trades';
+                    plHtml = `<div class="day-pl ${dayData.totalPl >= 0 ? 'profit' : 'loss'}">${dayData.totalPl >= 0 ? '+' : ''}$${dayData.totalPl.toFixed(2)}</div>`;
+                    tradeIdAttr = `data-trade-id="${dayData.firstTradeId}"`;
+                }
+                calendarHtml.push(`<div class="${dayClass}" ${tradeIdAttr}><div class="day-number">${i}</div>${plHtml}</div>`);
             }
             calendarGridBody.innerHTML = calendarHtml.join('');
         };
@@ -355,17 +378,26 @@
             const direction = document.getElementById('direction').value;
             const timeIn = document.getElementById('time-in').value;
             const timeOut = document.getElementById('time-out').value;
-            
-            // Calculate P/L based on direction
-            let priceDiff;
-            if (direction === 'long') {
-                priceDiff = exitPrice - entryPrice; // Long: profit when exit > entry
+            const plOverride = parseFloat(document.getElementById('pl-override').value);
+            const commissions = parseFloat(document.getElementById('commissions').value);
+
+            let calculatedPL;
+            if (!isNaN(plOverride)) {
+                calculatedPL = plOverride;
+            } else if (!isNaN(entryPrice) && !isNaN(exitPrice) && !isNaN(tickValue)) {
+                let priceDiff;
+                if (direction === 'long') {
+                    priceDiff = exitPrice - entryPrice;
+                } else {
+                    priceDiff = entryPrice - exitPrice;
+                }
+                const numTicks = priceDiff / 0.25;
+                calculatedPL = numTicks * tickValue;
             } else {
-                priceDiff = entryPrice - exitPrice; // Short: profit when entry > exit
+                alert('Please enter either P/L Override or full entry/exit details.');
+                return;
             }
-            // Convert price difference to number of ticks (0.25 = 1 tick)
-            const numTicks = priceDiff / 0.25;
-            const calculatedPL = numTicks * tickValue;
+            
             const result = calculatedPL >= 0 ? 'win' : 'loss';
             
             trades.push({ 
@@ -375,13 +407,14 @@
                 pl: calculatedPL, 
                 symbol: document.getElementById('symbol').value, 
                 direction: direction,
-                entryPrice: entryPrice,
-                exitPrice: exitPrice,
-                tickValue: tickValue,
+                entryPrice: isNaN(entryPrice) ? null : entryPrice,
+                exitPrice: isNaN(exitPrice) ? null : exitPrice,
+                tickValue: isNaN(tickValue) ? null : tickValue,
                 timeIn: timeIn || null,
                 timeOut: timeOut || null,
                 screenshot: newScreenshotDataUrl, 
-                notes: document.getElementById('notes').value 
+                notes: document.getElementById('notes').value,
+                commissions: isNaN(commissions) ? null : commissions
             });
             resetFormState(); renderAll();
         };
@@ -418,10 +451,14 @@
                     <div class="form-group"><label for="edit-symbol">Symbol</label><input type="text" id="edit-symbol" value="${trade.symbol || ''}"></div>
                     <div class="form-group"><label for="edit-direction">Direction</label><select id="edit-direction" required><option value="long" ${trade.direction === 'long' ? 'selected' : ''}>Long</option><option value="short" ${trade.direction === 'short' ? 'selected' : ''}>Short</option></select></div>
                     <div class="form-row">
-                        <div class="form-group" style="width: 50%;"><label for="edit-entry-price">Entry Price</label><input type="number" step="any" id="edit-entry-price" value="${trade.entryPrice || ''}" required></div>
-                        <div class="form-group" style="width: 50%;"><label for="edit-exit-price">Exit Price</label><input type="number" step="any" id="edit-exit-price" value="${trade.exitPrice || ''}" required></div>
+                        <div class="form-group" style="width: 50%;"><label for="edit-entry-price">Entry Price</label><input type="number" step="any" id="edit-entry-price" value="${trade.entryPrice || ''}"></div>
+                        <div class="form-group" style="width: 50%;"><label for="edit-exit-price">Exit Price</label><input type="number" step="any" id="edit-exit-price" value="${trade.exitPrice || ''}"></div>
                     </div>
-                    <div class="form-group"><label for="edit-tick-value">Tick Value ($)</label><input type="number" step="any" id="edit-tick-value" value="${trade.tickValue || ''}" required></div>
+                    <div class="form-group"><label for="edit-tick-value">Tick Value ($)</label><input type="number" step="any" id="edit-tick-value" value="${trade.tickValue || ''}"></div>
+                    <div class="form-row">
+                        <div class="form-group" style="width: 50%;"><label for="edit-pl-override">P/L Override</label><input type="number" step="any" id="edit-pl-override" value="${trade.plOverride || ''}"></div>
+                        <div class="form-group" style="width: 50%;"><label for="edit-commissions">Commissions</label><input type="number" step="any" id="edit-commissions" value="${trade.commissions || ''}"></div>
+                    </div>
                     <div class="form-row">
                         <div class="form-group" style="width: 50%;"><label for="edit-time-in">Time In</label><input type="time" id="edit-time-in" step="1" value="${trade.timeIn || ''}"></div>
                         <div class="form-group" style="width: 50%;"><label for="edit-time-out">Time Out</label><input type="time" id="edit-time-out" step="1" value="${trade.timeOut || ''}"></div>
@@ -447,33 +484,44 @@
                 const direction = e.target.querySelector('#edit-direction').value;
                 const timeIn = e.target.querySelector('#edit-time-in').value;
                 const timeOut = e.target.querySelector('#edit-time-out').value;
-                
-                // Calculate P/L based on direction
-                let priceDiff;
-                if (direction === 'long') {
-                    priceDiff = exitPrice - entryPrice; // Long: profit when exit > entry
+                const plOverride = parseFloat(e.target.querySelector('#edit-pl-override').value);
+                const commissions = parseFloat(e.target.querySelector('#edit-commissions').value);
+
+                let calculatedPL;
+                if (!isNaN(plOverride)) {
+                    calculatedPL = plOverride;
+                } else if (!isNaN(entryPrice) && !isNaN(exitPrice) && !isNaN(tickValue)) {
+                    let priceDiff;
+                    if (direction === 'long') {
+                        priceDiff = exitPrice - entryPrice;
+                    } else {
+                        priceDiff = entryPrice - exitPrice;
+                    }
+                    const numTicks = priceDiff / 0.25;
+                    calculatedPL = numTicks * tickValue;
                 } else {
-                    priceDiff = entryPrice - exitPrice; // Short: profit when entry > exit
+                    // Keep existing P/L if fields are cleared and no override is provided
+                    calculatedPL = trades[index].pl;
                 }
-                // Convert price difference to number of ticks (0.25 = 1 tick)
-                const numTicks = priceDiff / 0.25;
-                const pl = numTicks * tickValue;
-                const result = pl >= 0 ? 'win' : 'loss';
+
+                const result = calculatedPL >= 0 ? 'win' : 'loss';
                 
-                trades[index] = { 
-                    ...trades[index], 
-                    date: e.target.querySelector('#edit-date').value, 
-                    result, 
-                    pl, 
-                    symbol: e.target.querySelector('#edit-symbol').value, 
+                trades[index] = {
+                    ...trades[index],
+                    date: e.target.querySelector('#edit-date').value,
+                    result,
+                    pl: calculatedPL,
+                    symbol: e.target.querySelector('#edit-symbol').value,
                     direction: direction,
-                    entryPrice: entryPrice,
-                    exitPrice: exitPrice,
-                    tickValue: tickValue,
+                    entryPrice: isNaN(entryPrice) ? null : entryPrice,
+                    exitPrice: isNaN(exitPrice) ? null : exitPrice,
+                    tickValue: isNaN(tickValue) ? null : tickValue,
                     timeIn: timeIn || null,
                     timeOut: timeOut || null,
-                    notes: e.target.querySelector('#edit-notes').value, 
-                    screenshot: editScreenshotDataUrl 
+                    notes: e.target.querySelector('#edit-notes').value,
+                    screenshot: editScreenshotDataUrl,
+                    commissions: isNaN(commissions) ? null : commissions,
+                    plOverride: isNaN(plOverride) ? null : plOverride
                 };
                 renderAll(); closeModal('edit-modal');
             });
@@ -508,6 +556,15 @@
         form.addEventListener('submit', addTrade);
         document.getElementById('prev-month').addEventListener('click', () => { currentDate.setMonth(currentDate.getMonth() - 1); renderCalendar(); });
         document.getElementById('next-month').addEventListener('click', () => { currentDate.setMonth(currentDate.getMonth() + 1); renderCalendar(); });
+        calendarGridBody.addEventListener('click', (e) => {
+            const dayEl = e.target.closest('.calendar-day.has-trades');
+            if (dayEl) {
+                const tradeId = parseInt(dayEl.dataset.tradeId, 10);
+                if (tradeId) {
+                    window.openEditModal(tradeId);
+                }
+            }
+        });
         document.querySelectorAll('.close-modal').forEach(btn => btn.addEventListener('click', (e) => closeModal(e.target.closest('.modal-overlay').id)));
         
         // JSON Export/Import Event Listeners
